@@ -51,7 +51,7 @@ MENU_PRINCIPAL = ReplyKeyboardMarkup(
         [KeyboardButton("📋 Historial")],
     ],
     resize_keyboard=True,
-    persistent=True,
+    is_persistent=True,
 )
 
 def formato_pesos(monto):
