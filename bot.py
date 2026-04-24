@@ -115,16 +115,23 @@ async def elegir_categoria(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ESPERANDO_MONTO
 
 async def recibir_monto(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    texto = update.message.text.replace(",", ".").replace("$", "").strip()
+    texto = update.message.text.strip().replace("$", "").replace(" ", "")
+    # Soporta formato colombiano: 4.500.000 o 4,500,000 o 4500000
+    if texto.count(".") > 1:
+        texto = texto.replace(".", "")
+    elif texto.count(",") > 1:
+        texto = texto.replace(",", "")
+    else:
+        texto = texto.replace(",", "").replace(".", "")
     try:
         monto = float(texto)
     except ValueError:
-        await update.message.reply_text("❌ Solo el número. Ej: `150000`", parse_mode="Markdown")
+        await update.message.reply_text("❌ Solo el número. Ej: `150000` o `4.500.000`", parse_mode="Markdown")
         return ESPERANDO_MONTO
 
     context.user_data["monto"] = monto
     await update.message.reply_text(
-        "📝 ¿Descripción? _(ej: mercado del lunes, pago nómina...)_",
+        f"💵 Monto: *{formato_pesos(monto)}*\n\n📝 ¿Descripción? _(ej: mercado del lunes, pago nómina...)_",
         parse_mode="Markdown",
     )
     return ESPERANDO_DESCRIPCION
