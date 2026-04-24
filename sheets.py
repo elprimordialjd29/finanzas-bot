@@ -1,6 +1,10 @@
 import requests
 import os
+import re
 from datetime import datetime
+
+def limpiar_texto(texto):
+    return re.sub(r'[^\w\s\-.,áéíóúñÁÉÍÓÚÑ]', '', texto).strip()
 
 API_URL    = os.environ.get("SHEETDB_URL")
 SHEET_NAME = "Hoja 1"
@@ -14,10 +18,12 @@ def registrar_movimiento(tipo, monto, descripcion):
             "Hora": now.strftime("%H:%M"),
             "Tipo": tipo,
             "Monto": monto,
-            "Descripcion": descripcion,
+            "Descripcion": "",
             "Mes": now.strftime("%m/%Y"),
         }
     }
+    descripcion_limpia = limpiar_texto(descripcion)
+    payload["data"]["Descripcion"] = descripcion_limpia
     r = requests.post(f"{API_URL}?sheet={SHEET_NAME}", json=payload)
     return r.json()
 
