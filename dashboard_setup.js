@@ -1,10 +1,75 @@
-let SS_ID = "1m4zWkPYKFmHZk_bjL7Napo-fDrr_RtoymhwLvM1Q3bA";
+let SS_ID       = "1m4zWkPYKFmHZk_bjL7Napo-fDrr_RtoymhwLvM1Q3bA";
+let HOJA_DATOS  = "Movimientos";
 
 function setupDashboard() {
   let ss = SpreadsheetApp.openById(SS_ID);
+  setupMovimientos(ss);
   crearEstructura(ss);
   actualizarDashboard();
   crearTrigger();
+}
+
+// ── Formatear y renombrar hoja de datos ───────────────────────────────
+function setupMovimientos(ss) {
+  if (!ss) ss = SpreadsheetApp.openById(SS_ID);
+
+  // Renombrar "Hoja 1" → "Movimientos" si todavía existe
+  let vieja = ss.getSheetByName(HOJA_DATOS);
+  if (vieja) vieja.setName(HOJA_DATOS);
+
+  let sh = ss.getSheetByName(HOJA_DATOS);
+  if (!sh) {
+    sh = ss.insertSheet(HOJA_DATOS);
+  }
+
+  // Encabezados si la hoja está vacía
+  if (sh.getLastRow() === 0) {
+    sh.appendRow(["Fecha","Hora","Tipo","Monto","Descripcion","Mes"]);
+  }
+
+  // ── Estilo de encabezados
+  let AZUL   = "#1A5276";
+  let BLANCO = "#FFFFFF";
+  sh.setFrozenRows(1);
+  let header = sh.getRange("A1:F1");
+  header.setBackground(AZUL).setFontColor(BLANCO).setFontWeight("bold")
+        .setHorizontalAlignment("center").setVerticalAlignment("middle")
+        .setFontSize(10);
+  sh.setRowHeight(1, 30);
+
+  // ── Anchos de columna
+  sh.setColumnWidth(1, 110); // Fecha
+  sh.setColumnWidth(2, 70);  // Hora
+  sh.setColumnWidth(3, 90);  // Tipo
+  sh.setColumnWidth(4, 110); // Monto
+  sh.setColumnWidth(5, 260); // Descripcion
+  sh.setColumnWidth(6, 80);  // Mes
+
+  // ── Formato moneda en columna Monto (D)
+  sh.getRange("D2:D1000").setNumberFormat('$#,##0');
+
+  // ── Formato condicional: filas INGRESO verde claro, GASTO rojo claro
+  let rules = sh.getConditionalFormatRules();
+  rules = []; // limpiar reglas anteriores
+
+  let rIngreso = SpreadsheetApp.newConditionalFormatRule()
+    .whenFormulaSatisfied('=$C2="INGRESO"')
+    .setBackground("#EAFAF1")
+    .setRanges([sh.getRange("A2:F1000")])
+    .build();
+
+  let rGasto = SpreadsheetApp.newConditionalFormatRule()
+    .whenFormulaSatisfied('=$C2="GASTO"')
+    .setBackground("#FDEDEC")
+    .setRanges([sh.getRange("A2:F1000")])
+    .build();
+
+  sh.setConditionalFormatRules([rIngreso, rGasto]);
+
+  // ── Bordes
+  sh.getRange("A1:F1").setBorder(true,true,true,true,true,true,"#BDC3C7",SpreadsheetApp.BorderStyle.SOLID);
+
+  SpreadsheetApp.flush();
 }
 
 // ── Utilidades ────────────────────────────────────────────────────────
@@ -32,7 +97,7 @@ function parseMonto(val) {
 
 function getDatos() {
   let ss = SpreadsheetApp.openById(SS_ID);
-  let sh = ss.getSheetByName("Hoja 1");
+  let sh = ss.getSheetByName(HOJA_DATOS);
   if (!sh) return [];
   let rows = sh.getDataRange().getValues();
   if (rows.length <= 1) return [];
@@ -225,10 +290,10 @@ function crearEstructura(ss) {
 
   let kpis = [
     ["C","💵 INGRESOS",  VERDE,
-     `=SUMPRODUCT((MONTH('Hoja 1'!A$2:A$1000)=MONTH(TODAY()))*(YEAR('Hoja 1'!A$2:A$1000)=YEAR(TODAY()))*('Hoja 1'!C$2:C$1000="INGRESO")*('Hoja 1'!D$2:D$1000))`,
+     `=SUMPRODUCT((MONTH(HOJA_DATOS!A$2:A$1000)=MONTH(TODAY()))*(YEAR(HOJA_DATOS!A$2:A$1000)=YEAR(TODAY()))*(HOJA_DATOS!C$2:C$1000="INGRESO")*(HOJA_DATOS!D$2:D$1000))`,
      '$#,##0'],
     ["D","💸 GASTOS",    ROJO,
-     `=SUMPRODUCT((MONTH('Hoja 1'!A$2:A$1000)=MONTH(TODAY()))*(YEAR('Hoja 1'!A$2:A$1000)=YEAR(TODAY()))*('Hoja 1'!C$2:C$1000="GASTO")*('Hoja 1'!D$2:D$1000))`,
+     `=SUMPRODUCT((MONTH(HOJA_DATOS!A$2:A$1000)=MONTH(TODAY()))*(YEAR(HOJA_DATOS!A$2:A$1000)=YEAR(TODAY()))*(HOJA_DATOS!C$2:C$1000="GASTO")*(HOJA_DATOS!D$2:D$1000))`,
      '$#,##0'],
     ["E","💰 BALANCE",   AZUL,   `=C5-D5`,  '$#,##0'],
     ["F","📉 % GASTADO", NARANJA,`=IFERROR(D5/C5,0)`, '0.0%'],
