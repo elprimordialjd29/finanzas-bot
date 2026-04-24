@@ -1,9 +1,14 @@
+const SPREADSHEET_ID = "1BKx9wor71zAYmd4NPQGDpcTshNA0oQZvHKA4LdjhLX4";
 const SHEET_NAME = "Movimientos";
+
+function getSheet() {
+  return SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(SHEET_NAME);
+}
 
 function doPost(e) {
   try {
     const data = JSON.parse(e.postData.contents);
-    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME);
+    const sheet = getSheet();
     const now = new Date();
     const mes = Utilities.formatDate(now, Session.getScriptTimeZone(), "MM/yyyy");
 
@@ -20,7 +25,7 @@ function doPost(e) {
 
 function doGet(e) {
   try {
-    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME);
+    const sheet = getSheet();
     const rows = sheet.getDataRange().getValues();
     const headers = rows[0];
     const records = rows.slice(1).map(r => {
@@ -30,7 +35,7 @@ function doGet(e) {
     });
 
     const action = e.parameter.action;
-    const mes = e.parameter.mes || ""; // formato MM/yyyy
+    const mes = e.parameter.mes || "";
 
     if (action === "resumen") {
       const [mm, yyyy] = mes.split("/");
