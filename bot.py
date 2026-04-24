@@ -42,7 +42,7 @@ CATEGORIAS_GASTO = [
     "📦 Varios",
 ]
 
-ELIGIENDO_TIPO, ELIGIENDO_CATEGORIA, ESPERANDO_MONTO = range(3)
+ELIGIENDO_TIPO, ELIGIENDO_CATEGORIA, ESPERANDO_MONTO, ESPERANDO_DESCRIPCION = range(4)
 
 MENU = ReplyKeyboardMarkup(
     [
@@ -122,13 +122,27 @@ async def recibir_monto(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ Solo el número. Ej: `150000`", parse_mode="Markdown")
         return ESPERANDO_MONTO
 
-    tipo      = context.user_data["tipo"]
-    categoria = context.user_data["categoria"]
-    sheets.registrar_movimiento(tipo, monto, categoria)
+    context.user_data["monto"] = monto
+    await update.message.reply_text(
+        "📝 ¿Descripción? _(ej: mercado del lunes, pago nómina...)_",
+        parse_mode="Markdown",
+    )
+    return ESPERANDO_DESCRIPCION
+
+async def recibir_descripcion(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    descripcion = update.message.text.strip()
+    tipo        = context.user_data["tipo"]
+    categoria   = context.user_data["categoria"]
+    monto       = context.user_data["monto"]
+
+    sheets.registrar_movimiento(tipo, monto, f"{categoria} - {descripcion}")
 
     emoji = "✅ Ingreso" if tipo == "INGRESO" else "✅ Gasto"
     await update.message.reply_text(
-        f"{emoji} registrado\n📂 {categoria}\n💰 {formato_pesos(monto)}",
+        f"{emoji} registrado\n"
+        f"📂 {categoria}\n"
+        f"📝 {descripcion}\n"
+        f"💰 {formato_pesos(monto)}",
         parse_mode="Markdown",
         reply_markup=MENU,
     )
@@ -208,6 +222,9 @@ def main():
             ],
             ESPERANDO_MONTO: [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, recibir_monto),
+            ],
+            ESPERANDO_DESCRIPCION: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, recibir_descripcion),
             ],
         },
         fallbacks=[
