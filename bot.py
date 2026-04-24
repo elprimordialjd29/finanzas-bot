@@ -11,7 +11,7 @@ import sheets
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-TOKEN = os.environ.get("TELEGRAM_TOKEN")
+TOKEN   = os.environ.get("TELEGRAM_TOKEN")
 CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 
 CATEGORIAS_INGRESO = [
@@ -42,12 +42,12 @@ CATEGORIAS_GASTO = [
     "📦 Varios",
 ]
 
-ELIGIENDO_CATEGORIA, ESPERANDO_MONTO = range(2)
+ELIGIENDO_TIPO, ELIGIENDO_CATEGORIA, ESPERANDO_MONTO = range(3)
 
-MENU_PRINCIPAL = ReplyKeyboardMarkup(
+MENU = ReplyKeyboardMarkup(
     [
-        [KeyboardButton("💰 Registrar Ingreso"), KeyboardButton("💸 Registrar Gasto")],
-        [KeyboardButton("📊 Resumen del Mes"),   KeyboardButton("💳 Saldo Actual")],
+        [KeyboardButton("💰 Ingreso"),  KeyboardButton("💸 Gasto")],
+        [KeyboardButton("📊 Resumen"), KeyboardButton("💳 Saldo")],
         [KeyboardButton("📋 Historial")],
     ],
     resize_keyboard=True,
@@ -72,49 +72,36 @@ def teclado_categorias(categorias):
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "💰 *Bot de Finanzas - Jesús Vanegas*\n\n"
-        "Usa los botones del menú para registrar movimientos y consultar tu balance.",
+        "💰 *Bot de Finanzas - Jesús Vanegas*\n\nUsa los botones del menú.",
         parse_mode="Markdown",
-        reply_markup=MENU_PRINCIPAL,
+        reply_markup=MENU,
     )
 
-async def cmd_ingreso(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# ── Inicio del flujo de registro ─────────────────────────────────────
+async def iniciar_ingreso(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["tipo"] = "INGRESO"
     await update.message.reply_text(
         "💰 *¿Qué tipo de ingreso?*",
         parse_mode="Markdown",
-        reply_markup=teclado_categorias(CATEGORIAS_INGRESO)
+        reply_markup=teclado_categorias(CATEGORIAS_INGRESO),
     )
     return ELIGIENDO_CATEGORIA
 
-async def cmd_gasto(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def iniciar_gasto(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["tipo"] = "GASTO"
     await update.message.reply_text(
         "💸 *¿Qué tipo de gasto?*",
         parse_mode="Markdown",
-        reply_markup=teclado_categorias(CATEGORIAS_GASTO)
+        reply_markup=teclado_categorias(CATEGORIAS_GASTO),
     )
     return ELIGIENDO_CATEGORIA
-
-async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    texto = update.message.text
-    if texto == "💰 Registrar Ingreso":
-        return await cmd_ingreso(update, context)
-    elif texto == "💸 Registrar Gasto":
-        return await cmd_gasto(update, context)
-    elif texto == "📊 Resumen del Mes":
-        await resumen(update, context)
-    elif texto == "💳 Saldo Actual":
-        await saldo(update, context)
-    elif texto == "📋 Historial":
-        await historial(update, context)
 
 async def elegir_categoria(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
 
     if query.data == "cancelar":
-        await query.edit_message_text("❌ Operación cancelada.")
+        await query.edit_message_text("❌ Cancelado.")
         return ConversationHandler.END
 
     context.user_data["categoria"] = query.data
@@ -123,7 +110,7 @@ async def elegir_categoria(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await query.edit_message_text(
         f"{emoji} *{query.data}*\n\n¿Cuánto? Escribe el monto:",
-        parse_mode="Markdown"
+        parse_mode="Markdown",
     )
     return ESPERANDO_MONTO
 
@@ -132,36 +119,37 @@ async def recibir_monto(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         monto = float(texto)
     except ValueError:
-        await update.message.reply_text("❌ Escribe solo el número. Ejemplo: `150000`", parse_mode="Markdown")
+        await update.message.reply_text("❌ Solo el número. Ej: `150000`", parse_mode="Markdown")
         return ESPERANDO_MONTO
 
-    tipo = context.user_data["tipo"]
+    tipo      = context.user_data["tipo"]
     categoria = context.user_data["categoria"]
     sheets.registrar_movimiento(tipo, monto, categoria)
 
     emoji = "✅ Ingreso" if tipo == "INGRESO" else "✅ Gasto"
     await update.message.reply_text(
-        f"{emoji} registrado\n"
-        f"📂 {categoria}\n"
-        f"💰 {formato_pesos(monto)}",
-        parse_mode="Markdown"
+        f"{emoji} registrado\n📂 {categoria}\n💰 {formato_pesos(monto)}",
+        parse_mode="Markdown",
+        reply_markup=MENU,
     )
     return ConversationHandler.END
 
 async def cancelar(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("❌ Operación cancelada.")
+    await update.message.reply_text("❌ Cancelado.", reply_markup=MENU)
     return ConversationHandler.END
 
+# ── Consultas ────────────────────────────────────────────────────────
 async def saldo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ingresos, gastos, balance = sheets.obtener_resumen_mes()
     emoji = "🟢" if balance >= 0 else "🔴"
     await update.message.reply_text(
         f"{emoji} *Saldo del mes*\n\n"
         f"💵 Ingresos: {formato_pesos(ingresos)}\n"
-        f"💸 Gastos: {formato_pesos(gastos)}\n"
+        f"💸 Gastos:   {formato_pesos(gastos)}\n"
         f"━━━━━━━━━━━━━━\n"
-        f"💰 Balance: {formato_pesos(balance)}",
-        parse_mode="Markdown"
+        f"💰 Balance:  {formato_pesos(balance)}",
+        parse_mode="Markdown",
+        reply_markup=MENU,
     )
 
 async def resumen(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -170,24 +158,25 @@ async def resumen(update: Update, context: ContextTypes.DEFAULT_TYPE):
     emoji = "🟢" if balance >= 0 else "🔴"
     await update.message.reply_text(
         f"📊 *Resumen del mes*\n\n"
-        f"💵 Ingresos: {formato_pesos(ingresos)}\n"
-        f"💸 Gastos: {formato_pesos(gastos)}\n"
-        f"📉 Gastado: {porcentaje:.1f}% del ingreso\n"
+        f"💵 Ingresos:  {formato_pesos(ingresos)}\n"
+        f"💸 Gastos:    {formato_pesos(gastos)}\n"
+        f"📉 Gastado:   {porcentaje:.1f}%\n"
         f"━━━━━━━━━━━━━━\n"
         f"{emoji} Balance: {formato_pesos(balance)}",
-        parse_mode="Markdown"
+        parse_mode="Markdown",
+        reply_markup=MENU,
     )
 
 async def historial(update: Update, context: ContextTypes.DEFAULT_TYPE):
     registros = sheets.obtener_historial()
     if not registros:
-        await update.message.reply_text("📭 No hay movimientos registrados.")
+        await update.message.reply_text("📭 Sin movimientos.", reply_markup=MENU)
         return
     texto = "📋 *Últimos movimientos*\n\n"
     for r in reversed(registros):
         emoji = "💵" if r.get("Tipo") == "INGRESO" else "💸"
-        texto += f"{emoji} {r.get('Fecha')} — {formato_pesos(r.get('Monto', 0))} — {r.get('Descripcion')}\n"
-    await update.message.reply_text(texto, parse_mode="Markdown")
+        texto += f"{emoji} {r.get('Fecha')} — {formato_pesos(float(r.get('Monto', 0)))} — {r.get('Descripcion')}\n"
+    await update.message.reply_text(texto, parse_mode="Markdown", reply_markup=MENU)
 
 async def alerta_diaria(context: ContextTypes.DEFAULT_TYPE):
     ingresos, gastos, balance = sheets.obtener_resumen_mes()
@@ -196,11 +185,11 @@ async def alerta_diaria(context: ContextTypes.DEFAULT_TYPE):
         chat_id=CHAT_ID,
         text=(
             f"🔔 *Resumen del día*\n\n"
-            f"💵 Ingresos del mes: {formato_pesos(ingresos)}\n"
-            f"💸 Gastos del mes: {formato_pesos(gastos)}\n"
+            f"💵 Ingresos: {formato_pesos(ingresos)}\n"
+            f"💸 Gastos:   {formato_pesos(gastos)}\n"
             f"{emoji} Balance: {formato_pesos(balance)}"
         ),
-        parse_mode="Markdown"
+        parse_mode="Markdown",
     )
 
 def main():
@@ -208,26 +197,34 @@ def main():
 
     conv = ConversationHandler(
         entry_points=[
-            CommandHandler("ingreso", cmd_ingreso),
-            CommandHandler("gasto", cmd_gasto),
-            MessageHandler(filters.Regex("^(💰 Registrar Ingreso|💸 Registrar Gasto)$"), menu_handler),
+            CommandHandler("ingreso", iniciar_ingreso),
+            CommandHandler("gasto",   iniciar_gasto),
+            MessageHandler(filters.TEXT & filters.Regex("💰 Ingreso"),  iniciar_ingreso),
+            MessageHandler(filters.TEXT & filters.Regex("💸 Gasto"),    iniciar_gasto),
         ],
         states={
-            ELIGIENDO_CATEGORIA: [CallbackQueryHandler(elegir_categoria)],
-            ESPERANDO_MONTO: [MessageHandler(filters.TEXT & ~filters.COMMAND, recibir_monto)],
+            ELIGIENDO_CATEGORIA: [
+                CallbackQueryHandler(elegir_categoria),
+            ],
+            ESPERANDO_MONTO: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, recibir_monto),
+            ],
         },
-        fallbacks=[CommandHandler("cancelar", cancelar)],
+        fallbacks=[
+            CommandHandler("cancelar", cancelar),
+            MessageHandler(filters.TEXT & filters.Regex("❌"), cancelar),
+        ],
+        per_message=False,
     )
 
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("saldo", saldo))
-    app.add_handler(CommandHandler("resumen", resumen))
-    app.add_handler(CommandHandler("historial", historial))
+    app.add_handler(CommandHandler("start",    start))
+    app.add_handler(CommandHandler("saldo",    saldo))
+    app.add_handler(CommandHandler("resumen",  resumen))
+    app.add_handler(CommandHandler("historial",historial))
+    app.add_handler(MessageHandler(filters.TEXT & filters.Regex("📊 Resumen"), resumen))
+    app.add_handler(MessageHandler(filters.TEXT & filters.Regex("💳 Saldo"),   saldo))
+    app.add_handler(MessageHandler(filters.TEXT & filters.Regex("📋 Historial"), historial))
     app.add_handler(conv)
-    app.add_handler(MessageHandler(
-        filters.Regex("^(📊 Resumen del Mes|💳 Saldo Actual|📋 Historial)$"),
-        menu_handler
-    ))
 
     app.job_queue.run_daily(alerta_diaria, time=time(20, 0))
 
