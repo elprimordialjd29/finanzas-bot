@@ -7,6 +7,11 @@ function getSheet() {
   if (!sheet) {
     sheet = ss.insertSheet(SHEET_NAME);
     sheet.appendRow(["Fecha", "Hora", "Tipo", "Monto", "Descripcion", "Mes"]);
+    // Forzar texto en columnas que Sheets auto-convierte
+    sheet.getRange("A:A").setNumberFormat("@");
+    sheet.getRange("B:B").setNumberFormat("@");
+    sheet.getRange("F:F").setNumberFormat("@");
+    sheet.getRange("D:D").setNumberFormat("$#,##0");
   }
   return sheet;
 }
@@ -15,23 +20,32 @@ function doGet(e) {
   try {
     let action = e.parameter.action || "";
 
-    // ── Registrar movimiento via GET (evita problemas de redirect con POST)
     if (action === "registrar") {
       let sheet = getSheet();
+      // Forzar texto en Hora y Mes para evitar auto-conversión de Sheets
       let now   = new Date();
-      let mes   = Utilities.formatDate(now, Session.getScriptTimeZone(), "MM/yyyy");
-      sheet.appendRow([
-        e.parameter.fecha       || "",
-        e.parameter.hora        || "",
-        e.parameter.tipo        || "",
-        Number(e.parameter.monto) || 0,
-        e.parameter.descripcion || "",
-        mes
-      ]);
-      return ok({ mensaje: "Registrado correctamente" });
+      let mm    = String(now.getMonth()+1).padStart(2,"0");
+      let yyyy  = now.getFullYear();
+      let mes   = mm + "/" + yyyy;
+
+      let fecha = e.parameter.fecha       || "";
+      let hora  = e.parameter.hora        || "";
+      let tipo  = e.parameter.tipo        || "";
+      let monto = Number(e.parameter.monto) || 0;
+      let desc  = e.parameter.descripcion || "";
+
+      // Insertar fila
+      let lastRow = sheet.getLastRow() + 1;
+      sheet.getRange(lastRow, 1).setNumberFormat("@").setValue(fecha);
+      sheet.getRange(lastRow, 2).setNumberFormat("@").setValue(hora);
+      sheet.getRange(lastRow, 3).setValue(tipo);
+      sheet.getRange(lastRow, 4).setNumberFormat("$#,##0").setValue(monto);
+      sheet.getRange(lastRow, 5).setValue(desc);
+      sheet.getRange(lastRow, 6).setNumberFormat("@").setValue(mes);
+
+      return ok({ mensaje: "Registrado", fila: lastRow, desc: desc, mes: mes });
     }
 
-    // ── Resumen del mes
     if (action === "resumen") {
       let registros = getRegistros();
       let mes       = e.parameter.mes || "";
@@ -47,25 +61,22 @@ function doGet(e) {
       return ok({ ingresos, gastos, balance: ingresos - gastos });
     }
 
-    // ── Historial
     if (action === "historial") {
-      let registros = getRegistros();
-      return ok({ registros: registros.slice(-10) });
+      return ok({ registros: getRegistros().slice(-10) });
     }
 
-    return error("Acción no reconocida: " + action);
+    return error("Accion no reconocida: " + action);
   } catch(err) {
     return error(err.message);
   }
 }
 
 function doPost(e) {
-  // Redirige a doGet usando los datos del body
   try {
     let data = JSON.parse(e.postData.contents);
-    e.parameter = e.parameter || {};
-    Object.keys(data).forEach(k => e.parameter[k] = data[k]);
-    return doGet(e);
+    // Simular parámetros GET con datos del POST
+    let fakeE = { parameter: data };
+    return doGet(fakeE);
   } catch(err) {
     return error(err.message);
   }
