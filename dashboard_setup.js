@@ -138,13 +138,30 @@ function crearEstructura(ss) {
   t.setBackground(AZUL).setFontColor(BLANCO).setFontSize(16).setFontWeight("bold").setHorizontalAlignment("center").setVerticalAlignment("middle");
 
   dash.setRowHeight(2, 8);
-  let labels = [["C","INGRESOS DEL MES",VERDE],["D","GASTOS DEL MES",ROJO],["E","BALANCE",AZUL],["F","% GASTADO",NARANJA]];
-  labels.forEach(([col, lbl, color]) => {
-    dash.setRowHeight(3, 22); dash.setRowHeight(4, 55); dash.setRowHeight(5, 8);
+  dash.setRowHeight(3, 22);
+  dash.setRowHeight(4, 55);
+  dash.setRowHeight(5, 8);
+
+  let kpis = [
+    ["C","INGRESOS DEL MES", VERDE,
+     `=SUMPRODUCT((MONTH('Hoja 1'!A$2:A$1000)=MONTH(TODAY()))*(YEAR('Hoja 1'!A$2:A$1000)=YEAR(TODAY()))*('Hoja 1'!C$2:C$1000="INGRESO")*('Hoja 1'!D$2:D$1000))`,
+     '$#,##0'],
+    ["D","GASTOS DEL MES", ROJO,
+     `=SUMPRODUCT((MONTH('Hoja 1'!A$2:A$1000)=MONTH(TODAY()))*(YEAR('Hoja 1'!A$2:A$1000)=YEAR(TODAY()))*('Hoja 1'!C$2:C$1000="GASTO")*('Hoja 1'!D$2:D$1000))`,
+     '$#,##0'],
+    ["E","BALANCE", AZUL,
+     `=C4-D4`,
+     '$#,##0'],
+    ["F","% GASTADO", NARANJA,
+     `=IFERROR(D4/C4,0)`,
+     '0.0%'],
+  ];
+
+  kpis.forEach(([col, lbl, color, formula, fmt]) => {
     dash.getRange(`${col}3`).setValue(lbl).setBackground(color).setFontColor(BLANCO).setFontSize(9).setFontWeight("bold").setHorizontalAlignment("center");
     let v = dash.getRange(`${col}4`);
-    v.setBackground(color).setFontColor(BLANCO).setFontSize(20).setFontWeight("bold").setHorizontalAlignment("center").setVerticalAlignment("middle");
-    v.setNumberFormat(col === "F" ? "0.0%" : '$#,##0');
+    v.setFormula(formula).setBackground(color).setFontColor(BLANCO).setFontSize(20).setFontWeight("bold").setHorizontalAlignment("center").setVerticalAlignment("middle");
+    v.setNumberFormat(fmt);
   });
 
   dash.setRowHeight(6, 8);
