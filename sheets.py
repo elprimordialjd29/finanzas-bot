@@ -4,7 +4,7 @@ from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
-SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwvGOmCph1_L8Ds5gmEN4wGjA4teqtwsLfk423nkfYWRgHEgJNvAmVrfl54FKyNg0ON/exec"
+SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyXqIQovqriY_586OV6YN3Dyiu72u0asj5z8aknMwCwEz_m3pVaNJWwT6TKZH89YiIg/exec"
 
 def registrar_movimiento(tipo, monto, descripcion):
     now = datetime.now()
