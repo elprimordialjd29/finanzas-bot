@@ -65,13 +65,25 @@ function actualizarDashboard() {
   // ── Dashboard
   let dash = ss.getSheetByName("Dashboard");
   if (dash) {
-    // Barra de progreso de gastos
-    dash.getRange("B6").setValue("📊 Nivel de gasto: " + barraProgreso(pct));
+    // Mes actual en español
+    let meses_es = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+    let nowDate = new Date();
+    dash.getRange("B2").setValue("📅 " + meses_es[nowDate.getMonth()] + " " + nowDate.getFullYear());
 
-    // Estado financiero
-    let estCell = dash.getRange("B5");
+    // KPIs como valores (evita errores de fórmula en locale español)
+    dash.getRange("C5").setValue(ingresos);
+    dash.getRange("D5").setValue(gastos);
+    dash.getRange("E5").setValue(balance);
+    dash.getRange("F5").setValue(pct).setNumberFormat("0.0%");
+    dash.getRange("E5").setFontColor(balance >= 0 ? "#FFFFFF" : "#FFD700");
+
+    // Estado financiero — B6 (merged B6:F6)
+    let estCell = dash.getRange("B6");
     estCell.setValue(estado);
     estCell.setFontColor(balance >= 0 ? "#1E8449" : "#C0392B").setFontWeight("bold").setFontSize(11);
+
+    // Barra de progreso de gastos — B7 (merged B7:F7)
+    dash.getRange("B7").setValue("📊 Nivel de gasto: " + barraProgreso(pct));
 
     // Últimos movimientos
     let ultimos = datos.slice(-10).reverse();
@@ -79,7 +91,18 @@ function actualizarDashboard() {
       let row = 11 + i;
       let r   = ultimos[i];
       let icono = r ? (r["Tipo"]==="INGRESO" ? "💵" : "💸") : "";
-      dash.getRange(`B${row}`).setValue(r ? r["Fecha"].toString().split(" ")[0] : "");
+
+      let fechaStr = "";
+      if (r) {
+        let f = r["Fecha"];
+        if (f instanceof Date) {
+          fechaStr = String(f.getDate()).padStart(2,"0")+"/"+String(f.getMonth()+1).padStart(2,"0")+"/"+f.getFullYear();
+        } else {
+          fechaStr = (f||"").toString();
+        }
+      }
+
+      dash.getRange(`B${row}`).setValue(fechaStr);
       dash.getRange(`C${row}`).setValue(r ? formatHora(r["Hora"]) : "");
       dash.getRange(`D${row}`).setValue(r ? icono+" "+r["Tipo"] : "");
       dash.getRange(`E${row}`).setValue(r ? parseMonto(r["Monto"]) : "");
@@ -94,10 +117,6 @@ function actualizarDashboard() {
 
     // Fecha actualización
     dash.getRange("B22").setValue("🔄 Actualizado: " + new Date().toLocaleString());
-
-    // Formato condicional balance: verde si > 0, rojo si < 0
-    let balCell = dash.getRange("E4");
-    balCell.setFontColor(balance >= 0 ? "#FFFFFF" : "#FFD700");
   }
 
   // ── Por Mes
@@ -189,11 +208,11 @@ function crearEstructura(ss) {
   tit.setBackground(AZUL).setFontColor(BLANCO).setFontSize(18).setFontWeight("bold")
      .setHorizontalAlignment("center").setVerticalAlignment("middle");
 
-  // ── Fila 2: Mes actual
+  // ── Fila 2: Mes actual (valor estático — se actualiza con actualizarDashboard)
   dash.setRowHeight(2,28);
   let mesCell = dash.getRange("B2:F2");
   mesCell.merge();
-  mesCell.setFormula('=TEXT(TODAY(),"MMMM YYYY")');
+  mesCell.setValue("📅 ...");
   mesCell.setBackground("#D6EAF8").setFontColor(AZUL).setFontSize(11)
          .setFontWeight("bold").setHorizontalAlignment("center").setVerticalAlignment("middle");
 
