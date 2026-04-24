@@ -1,7 +1,10 @@
 import os
 import logging
-from telegram import Update
-from telegram.ext import Application, CommandHandler, ContextTypes
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import (
+    Application, CommandHandler, CallbackQueryHandler,
+    MessageHandler, ConversationHandler, ContextTypes, filters
+)
 from datetime import time
 import sheets
 
@@ -11,46 +14,124 @@ logger = logging.getLogger(__name__)
 TOKEN = os.environ.get("TELEGRAM_TOKEN")
 CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 
+CATEGORIAS_INGRESO = [
+    "💼 Ingreso Fijo",
+    "💵 Otros Ingresos",
+]
+
+CATEGORIAS_GASTO = [
+    "🏠 Arriendo",
+    "💡 Luz",
+    "💧 Agua",
+    "🔥 Gas",
+    "📶 Internet",
+    "📱 Plan Celular",
+    "🛒 Mercado",
+    "🚗 Transporte",
+    "🏥 Salud",
+    "💊 Medicamentos",
+    "📚 Educación",
+    "👕 Ropa",
+    "🍽️ Restaurante",
+    "🎬 Entretenimiento",
+    "💳 Deudas / Créditos",
+    "🛡️ Seguros",
+    "🐾 Mascotas",
+    "🎁 Regalos",
+    "🔧 Reparaciones",
+    "📦 Varios",
+]
+
+ELIGIENDO_CATEGORIA, ESPERANDO_MONTO = range(2)
+
 def formato_pesos(monto):
     return f"${monto:,.0f}".replace(",", ".")
+
+def teclado_categorias(categorias):
+    botones = []
+    fila = []
+    for i, cat in enumerate(categorias):
+        fila.append(InlineKeyboardButton(cat, callback_data=cat))
+        if len(fila) == 2:
+            botones.append(fila)
+            fila = []
+    if fila:
+        botones.append(fila)
+    botones.append([InlineKeyboardButton("❌ Cancelar", callback_data="cancelar")])
+    return InlineKeyboardMarkup(botones)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "💰 *Bot de Finanzas - Jesús Vanegas*\n\n"
         "Comandos disponibles:\n"
-        "• `/ingreso 50000 descripcion`\n"
-        "• `/gasto 30000 descripcion`\n"
-        "• `/saldo` — balance del mes\n"
-        "• `/resumen` — desglose completo\n"
-        "• `/historial` — últimos 10 movimientos",
+        "• /ingreso — registrar un ingreso\n"
+        "• /gasto — registrar un gasto\n"
+        "• /saldo — balance del mes\n"
+        "• /resumen — desglose completo\n"
+        "• /historial — últimos 10 movimientos",
         parse_mode="Markdown"
     )
 
-async def ingreso(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    try:
-        monto = float(context.args[0].replace(",", "."))
-        descripcion = " ".join(context.args[1:]) if len(context.args) > 1 else "Sin descripción"
-        sheets.registrar_movimiento("INGRESO", monto, descripcion)
-        await update.message.reply_text(
-            f"✅ *Ingreso registrado*\n"
-            f"💵 {formato_pesos(monto)} — {descripcion}",
-            parse_mode="Markdown"
-        )
-    except (IndexError, ValueError):
-        await update.message.reply_text("❌ Uso: `/ingreso 50000 descripcion`", parse_mode="Markdown")
+async def cmd_ingreso(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data["tipo"] = "INGRESO"
+    await update.message.reply_text(
+        "💰 *¿Qué tipo de ingreso?*",
+        parse_mode="Markdown",
+        reply_markup=teclado_categorias(CATEGORIAS_INGRESO)
+    )
+    return ELIGIENDO_CATEGORIA
 
-async def gasto(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def cmd_gasto(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data["tipo"] = "GASTO"
+    await update.message.reply_text(
+        "💸 *¿Qué tipo de gasto?*",
+        parse_mode="Markdown",
+        reply_markup=teclado_categorias(CATEGORIAS_GASTO)
+    )
+    return ELIGIENDO_CATEGORIA
+
+async def elegir_categoria(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    if query.data == "cancelar":
+        await query.edit_message_text("❌ Operación cancelada.")
+        return ConversationHandler.END
+
+    context.user_data["categoria"] = query.data
+    tipo = context.user_data["tipo"]
+    emoji = "💵" if tipo == "INGRESO" else "💸"
+
+    await query.edit_message_text(
+        f"{emoji} *{query.data}*\n\n¿Cuánto? Escribe el monto:",
+        parse_mode="Markdown"
+    )
+    return ESPERANDO_MONTO
+
+async def recibir_monto(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    texto = update.message.text.replace(",", ".").replace("$", "").strip()
     try:
-        monto = float(context.args[0].replace(",", "."))
-        descripcion = " ".join(context.args[1:]) if len(context.args) > 1 else "Sin descripción"
-        sheets.registrar_movimiento("GASTO", monto, descripcion)
-        await update.message.reply_text(
-            f"✅ *Gasto registrado*\n"
-            f"💸 {formato_pesos(monto)} — {descripcion}",
-            parse_mode="Markdown"
-        )
-    except (IndexError, ValueError):
-        await update.message.reply_text("❌ Uso: `/gasto 30000 descripcion`", parse_mode="Markdown")
+        monto = float(texto)
+    except ValueError:
+        await update.message.reply_text("❌ Escribe solo el número. Ejemplo: `150000`", parse_mode="Markdown")
+        return ESPERANDO_MONTO
+
+    tipo = context.user_data["tipo"]
+    categoria = context.user_data["categoria"]
+    sheets.registrar_movimiento(tipo, monto, categoria)
+
+    emoji = "✅ Ingreso" if tipo == "INGRESO" else "✅ Gasto"
+    await update.message.reply_text(
+        f"{emoji} registrado\n"
+        f"📂 {categoria}\n"
+        f"💰 {formato_pesos(monto)}",
+        parse_mode="Markdown"
+    )
+    return ConversationHandler.END
+
+async def cancelar(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("❌ Operación cancelada.")
+    return ConversationHandler.END
 
 async def saldo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ingresos, gastos, balance = sheets.obtener_resumen_mes()
@@ -106,12 +187,23 @@ async def alerta_diaria(context: ContextTypes.DEFAULT_TYPE):
 def main():
     app = Application.builder().token(TOKEN).build()
 
+    conv = ConversationHandler(
+        entry_points=[
+            CommandHandler("ingreso", cmd_ingreso),
+            CommandHandler("gasto", cmd_gasto),
+        ],
+        states={
+            ELIGIENDO_CATEGORIA: [CallbackQueryHandler(elegir_categoria)],
+            ESPERANDO_MONTO: [MessageHandler(filters.TEXT & ~filters.COMMAND, recibir_monto)],
+        },
+        fallbacks=[CommandHandler("cancelar", cancelar)],
+    )
+
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("ingreso", ingreso))
-    app.add_handler(CommandHandler("gasto", gasto))
     app.add_handler(CommandHandler("saldo", saldo))
     app.add_handler(CommandHandler("resumen", resumen))
     app.add_handler(CommandHandler("historial", historial))
+    app.add_handler(conv)
 
     app.job_queue.run_daily(alerta_diaria, time=time(20, 0))
 
