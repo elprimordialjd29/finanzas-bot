@@ -42,7 +42,7 @@ CATEGORIAS_GASTO = [
     "📦 Varios",
 ]
 
-ELIGIENDO_TIPO, ELIGIENDO_CATEGORIA, ESPERANDO_MONTO, ESPERANDO_DESCRIPCION = range(4)
+ELIGIENDO_TIPO, ELIGIENDO_CATEGORIA, ESPERANDO_MONTO, CONFIRMANDO_MONTO, ESPERANDO_DESCRIPCION = range(5)
 
 MENU = ReplyKeyboardMarkup(
     [
@@ -130,8 +130,31 @@ async def recibir_monto(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return ESPERANDO_MONTO
 
     context.user_data["monto"] = monto
+    teclado = InlineKeyboardMarkup([
+        [InlineKeyboardButton("✅ Correcto", callback_data="monto_ok"),
+         InlineKeyboardButton("✏️ Modificar", callback_data="monto_modificar")]
+    ])
     await update.message.reply_text(
-        f"💵 Monto: *{formato_pesos(monto)}*\n\n📝 ¿Descripción? _(ej: mercado del lunes, pago nómina...)_",
+        f"💵 Monto: *{formato_pesos(monto)}*\n\n¿Está correcto?",
+        parse_mode="Markdown",
+        reply_markup=teclado,
+    )
+    return CONFIRMANDO_MONTO
+
+async def confirmar_monto(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    if query.data == "monto_modificar":
+        await query.edit_message_text("✏️ Escribe el nuevo monto:")
+        return ESPERANDO_MONTO
+
+    await query.edit_message_text(
+        f"💵 Monto: *{formato_pesos(context.user_data['monto'])}* ✅",
+        parse_mode="Markdown",
+    )
+    await query.message.reply_text(
+        "📝 ¿Descripción? _(ej: mercado del lunes, pago nómina...)_",
         parse_mode="Markdown",
     )
     return ESPERANDO_DESCRIPCION
@@ -229,6 +252,9 @@ def main():
             ],
             ESPERANDO_MONTO: [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, recibir_monto),
+            ],
+            CONFIRMANDO_MONTO: [
+                CallbackQueryHandler(confirmar_monto, pattern="^monto_"),
             ],
             ESPERANDO_DESCRIPCION: [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, recibir_descripcion),
