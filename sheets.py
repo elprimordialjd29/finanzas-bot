@@ -6,39 +6,27 @@ logger = logging.getLogger(__name__)
 
 SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyXqIQovqriY_586OV6YN3Dyiu72u0asj5z8aknMwCwEz_m3pVaNJWwT6TKZH89YiIg/exec"
 
-def _post(payload):
-    # Apps Script redirige POST → hay que re-enviar POST a la URL de redirect
-    try:
-        r = requests.post(SCRIPT_URL, json=payload, allow_redirects=False, timeout=10)
-        if r.status_code in (301, 302, 303, 307, 308):
-            location = r.headers.get("Location", SCRIPT_URL)
-            r = requests.post(location, json=payload, timeout=20)
-        logger.info("Apps Script response [%s]: %s", r.status_code, r.text[:200])
-        return r.json()
-    except Exception as e:
-        logger.error("Error en POST a Apps Script: %s", e)
-        return {"status": "error", "mensaje": str(e)}
-
 def _get(params):
     try:
-        r = requests.get(SCRIPT_URL, params=params, timeout=15)
+        r = requests.get(SCRIPT_URL, params=params, timeout=20)
+        logger.info("Apps Script [%s]: %s", r.status_code, r.text[:300])
         return r.json()
     except Exception as e:
-        logger.error("Error en GET a Apps Script: %s", e)
-        return {"status": "error"}
+        logger.error("Error Apps Script: %s", e)
+        return {"status": "error", "mensaje": str(e)}
 
 def registrar_movimiento(tipo, monto, descripcion):
     now = datetime.now()
-    payload = {
+    data = _get({
         "action":      "registrar",
         "fecha":       now.strftime("%d/%m/%Y"),
         "hora":        now.strftime("%H:%M"),
         "tipo":        tipo,
         "monto":       int(monto),
         "descripcion": descripcion.strip(),
-    }
-    logger.info("Registrando: %s", payload)
-    return _post(payload)
+    })
+    logger.info("Resultado registro: %s", data)
+    return data
 
 def obtener_resumen_mes():
     mes  = datetime.now().strftime("%m/%Y")

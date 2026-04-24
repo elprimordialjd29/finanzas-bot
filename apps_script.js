@@ -11,43 +11,33 @@ function getSheet() {
   return sheet;
 }
 
-function doPost(e) {
+function doGet(e) {
   try {
-    let data  = JSON.parse(e.postData.contents);
-    let sheet = getSheet();
-    let now   = new Date();
-    let mes   = Utilities.formatDate(now, Session.getScriptTimeZone(), "MM/yyyy");
+    let action = e.parameter.action || "";
 
-    if (data.action === "registrar") {
-      sheet.appendRow([data.fecha, data.hora, data.tipo, data.monto, data.descripcion, mes]);
+    // ── Registrar movimiento via GET (evita problemas de redirect con POST)
+    if (action === "registrar") {
+      let sheet = getSheet();
+      let now   = new Date();
+      let mes   = Utilities.formatDate(now, Session.getScriptTimeZone(), "MM/yyyy");
+      sheet.appendRow([
+        e.parameter.fecha       || "",
+        e.parameter.hora        || "",
+        e.parameter.tipo        || "",
+        Number(e.parameter.monto) || 0,
+        e.parameter.descripcion || "",
+        mes
+      ]);
       return ok({ mensaje: "Registrado correctamente" });
     }
 
-    return error("Acción no reconocida");
-  } catch(e) {
-    return error(e.message);
-  }
-}
-
-function doGet(e) {
-  try {
-    let sheet   = getSheet();
-    let rows    = sheet.getDataRange().getValues();
-    let headers = rows[0];
-    let records = rows.slice(1).map(r => {
-      let obj = {};
-      headers.forEach((h, i) => obj[h] = r[i]);
-      return obj;
-    });
-
-    let action = e.parameter.action;
-    let mes    = e.parameter.mes || "";
-
+    // ── Resumen del mes
     if (action === "resumen") {
+      let registros = getRegistros();
+      let mes       = e.parameter.mes || "";
       let [mm, yyyy] = mes.split("/");
-      let del_mes = records.filter(r => {
-        let fecha  = r["Fecha"] ? r["Fecha"].toString() : "";
-        let partes = fecha.split("/");
+      let del_mes = registros.filter(r => {
+        let partes = (r["Fecha"] || "").toString().split("/");
         return partes.length === 3 && partes[1] === mm && partes[2] === yyyy;
       });
       let ingresos = del_mes.filter(r => r["Tipo"] === "INGRESO")
@@ -57,14 +47,40 @@ function doGet(e) {
       return ok({ ingresos, gastos, balance: ingresos - gastos });
     }
 
+    // ── Historial
     if (action === "historial") {
-      return ok({ registros: records.slice(-10) });
+      let registros = getRegistros();
+      return ok({ registros: registros.slice(-10) });
     }
 
-    return error("Acción no reconocida");
-  } catch(e) {
-    return error(e.message);
+    return error("Acción no reconocida: " + action);
+  } catch(err) {
+    return error(err.message);
   }
+}
+
+function doPost(e) {
+  // Redirige a doGet usando los datos del body
+  try {
+    let data = JSON.parse(e.postData.contents);
+    e.parameter = e.parameter || {};
+    Object.keys(data).forEach(k => e.parameter[k] = data[k]);
+    return doGet(e);
+  } catch(err) {
+    return error(err.message);
+  }
+}
+
+function getRegistros() {
+  let sheet = getSheet();
+  if (sheet.getLastRow() <= 1) return [];
+  let rows    = sheet.getDataRange().getValues();
+  let headers = rows[0];
+  return rows.slice(1).map(r => {
+    let obj = {};
+    headers.forEach((h, i) => obj[h] = r[i]);
+    return obj;
+  }).filter(r => r["Fecha"] !== "");
 }
 
 function ok(data) {
