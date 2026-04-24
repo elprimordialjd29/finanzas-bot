@@ -18,7 +18,7 @@ def registrar_movimiento(tipo, monto, descripcion):
     return r.json()
 
 def obtener_resumen_mes():
-    mes = datetime.now().strftime("%B %Y")
+    mes = datetime.now().strftime("%m/%Y")
     r = requests.get(WEB_APP_URL, params={"action": "resumen", "mes": mes})
     data = r.json()
     return data.get("ingresos", 0), data.get("gastos", 0), data.get("balance", 0)
