@@ -1,47 +1,37 @@
 import requests
-import os
 import logging
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
-API_URL    = os.environ.get("SHEETDB_URL")
-SHEET_NAME = "Movimientos"
-
-def _params():
-    return {"sheet": SHEET_NAME}
+SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwvGOmCph1_L8Ds5gmEN4wGjA4teqtwsLfk423nkfYWRgHEgJNvAmVrfl54FKyNg0ON/exec"
 
 def registrar_movimiento(tipo, monto, descripcion):
     now = datetime.now()
     payload = {
-        "data": {
-            "Fecha":       now.strftime("%d/%m/%Y"),
-            "Hora":        now.strftime("%H:%M"),
-            "Tipo":        tipo,
-            "Monto":       int(monto),
-            "Descripcion": descripcion.strip(),
-            "Mes":         now.strftime("%m/%Y"),
-        }
+        "action":      "registrar",
+        "fecha":       now.strftime("%d/%m/%Y"),
+        "hora":        now.strftime("%H:%M"),
+        "tipo":        tipo,
+        "monto":       int(monto),
+        "descripcion": descripcion.strip(),
     }
-    logger.info("SheetDB payload: %s", payload)
-    r = requests.post(API_URL, json=payload, params=_params())
-    logger.info("SheetDB response: %s", r.text)
+    logger.info("Apps Script payload: %s", payload)
+    r = requests.post(SCRIPT_URL, json=payload)
+    logger.info("Apps Script response: %s", r.text)
     return r.json()
 
 def obtener_resumen_mes():
     mes = datetime.now().strftime("%m/%Y")
-    r = requests.get(API_URL, params=_params())
-    records = r.json()
-    if not isinstance(records, list):
+    r = requests.get(SCRIPT_URL, params={"action": "resumen", "mes": mes})
+    data = r.json()
+    if data.get("status") != "ok":
         return 0, 0, 0
-    del_mes = [rec for rec in records if rec.get("Mes") == mes]
-    ingresos = sum(float(rec["Monto"]) for rec in del_mes if rec.get("Tipo") == "INGRESO")
-    gastos   = sum(float(rec["Monto"]) for rec in del_mes if rec.get("Tipo") == "GASTO")
-    return ingresos, gastos, ingresos - gastos
+    return data.get("ingresos", 0), data.get("gastos", 0), data.get("balance", 0)
 
 def obtener_historial():
-    r = requests.get(API_URL, params=_params())
-    records = r.json()
-    if not isinstance(records, list):
+    r = requests.get(SCRIPT_URL, params={"action": "historial"})
+    data = r.json()
+    if data.get("status") != "ok":
         return []
-    return records[-10:]
+    return data.get("registros", [])
