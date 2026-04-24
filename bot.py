@@ -1,6 +1,6 @@
 import os
 import logging
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import (
     Application, CommandHandler, CallbackQueryHandler,
     MessageHandler, ConversationHandler, ContextTypes, filters
@@ -44,6 +44,16 @@ CATEGORIAS_GASTO = [
 
 ELIGIENDO_CATEGORIA, ESPERANDO_MONTO = range(2)
 
+MENU_PRINCIPAL = ReplyKeyboardMarkup(
+    [
+        [KeyboardButton("💰 Registrar Ingreso"), KeyboardButton("💸 Registrar Gasto")],
+        [KeyboardButton("📊 Resumen del Mes"),   KeyboardButton("💳 Saldo Actual")],
+        [KeyboardButton("📋 Historial")],
+    ],
+    resize_keyboard=True,
+    persistent=True,
+)
+
 def formato_pesos(monto):
     return f"${monto:,.0f}".replace(",", ".")
 
@@ -63,13 +73,9 @@ def teclado_categorias(categorias):
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "💰 *Bot de Finanzas - Jesús Vanegas*\n\n"
-        "Comandos disponibles:\n"
-        "• /ingreso — registrar un ingreso\n"
-        "• /gasto — registrar un gasto\n"
-        "• /saldo — balance del mes\n"
-        "• /resumen — desglose completo\n"
-        "• /historial — últimos 10 movimientos",
-        parse_mode="Markdown"
+        "Usa los botones del menú para registrar movimientos y consultar tu balance.",
+        parse_mode="Markdown",
+        reply_markup=MENU_PRINCIPAL,
     )
 
 async def cmd_ingreso(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -89,6 +95,19 @@ async def cmd_gasto(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=teclado_categorias(CATEGORIAS_GASTO)
     )
     return ELIGIENDO_CATEGORIA
+
+async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    texto = update.message.text
+    if texto == "💰 Registrar Ingreso":
+        return await cmd_ingreso(update, context)
+    elif texto == "💸 Registrar Gasto":
+        return await cmd_gasto(update, context)
+    elif texto == "📊 Resumen del Mes":
+        await resumen(update, context)
+    elif texto == "💳 Saldo Actual":
+        await saldo(update, context)
+    elif texto == "📋 Historial":
+        await historial(update, context)
 
 async def elegir_categoria(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -191,6 +210,7 @@ def main():
         entry_points=[
             CommandHandler("ingreso", cmd_ingreso),
             CommandHandler("gasto", cmd_gasto),
+            MessageHandler(filters.Regex("^(💰 Registrar Ingreso|💸 Registrar Gasto)$"), menu_handler),
         ],
         states={
             ELIGIENDO_CATEGORIA: [CallbackQueryHandler(elegir_categoria)],
@@ -204,6 +224,10 @@ def main():
     app.add_handler(CommandHandler("resumen", resumen))
     app.add_handler(CommandHandler("historial", historial))
     app.add_handler(conv)
+    app.add_handler(MessageHandler(
+        filters.Regex("^(📊 Resumen del Mes|💳 Saldo Actual|📋 Historial)$"),
+        menu_handler
+    ))
 
     app.job_queue.run_daily(alerta_diaria, time=time(20, 0))
 
