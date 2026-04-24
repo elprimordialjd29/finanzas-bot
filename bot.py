@@ -71,8 +71,29 @@ def teclado_categorias(categorias):
     return InlineKeyboardMarkup(botones)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    from datetime import datetime
+    hora = datetime.now().hour
+    if hora < 12:
+        saludo = "🌅 ¡Buenos días"
+    elif hora < 18:
+        saludo = "☀️ ¡Buenas tardes"
+    else:
+        saludo = "🌙 ¡Buenas noches"
+
+    try:
+        ingresos, gastos, balance = sheets.obtener_resumen_mes()
+        emoji = "🟢" if balance >= 0 else "🔴"
+        estado = (
+            f"\n\n📊 *Este mes vas así:*\n"
+            f"💵 Ingresos: {formato_pesos(ingresos)}\n"
+            f"💸 Gastos:   {formato_pesos(gastos)}\n"
+            f"{emoji} Balance: {formato_pesos(balance)}"
+        )
+    except Exception:
+        estado = ""
+
     await update.message.reply_text(
-        "💰 *Bot de Finanzas - Jesús Vanegas*\n\nUsa los botones del menú.",
+        f"{saludo}, jefe! 👋*\n¿Cómo están tus finanzas hoy?*{estado}\n\nUsa los botones del menú 👇",
         parse_mode="Markdown",
         reply_markup=MENU,
     )
@@ -231,10 +252,12 @@ async def alerta_diaria(context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_message(
         chat_id=CHAT_ID,
         text=(
-            f"🔔 *Resumen del día*\n\n"
+            f"🌙 *¡Buenas noches, jefe!*\n\n"
+            f"🔔 Aquí está tu resumen del día:\n\n"
             f"💵 Ingresos: {formato_pesos(ingresos)}\n"
             f"💸 Gastos:   {formato_pesos(gastos)}\n"
-            f"{emoji} Balance: {formato_pesos(balance)}"
+            f"{emoji} Balance: {formato_pesos(balance)}\n\n"
+            f"_Sigue así, vas bien_ 💪"
         ),
         parse_mode="Markdown",
     )
