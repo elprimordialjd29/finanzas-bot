@@ -5,7 +5,7 @@ function doPost(e) {
     const data = JSON.parse(e.postData.contents);
     const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME);
     const now = new Date();
-    const mes = Utilities.formatDate(now, Session.getScriptTimeZone(), "MMMM yyyy");
+    const mes = Utilities.formatDate(now, Session.getScriptTimeZone(), "MM/yyyy");
 
     if (data.action === "registrar") {
       sheet.appendRow([data.fecha, data.hora, data.tipo, data.monto, data.descripcion, mes]);
@@ -30,20 +30,20 @@ function doGet(e) {
     });
 
     const action = e.parameter.action;
-    const mes = e.parameter.mes || "";
+    const mes = e.parameter.mes || ""; // formato MM/yyyy
 
     if (action === "resumen") {
-      const del_mes = records.filter(r => r["Mes"] === mes);
-      const ingresos = del_mes.filter(r => r["Tipo"] === "INGRESO").reduce((s, r) => s + Number(r["Monto"]), 0);
-      const gastos = del_mes.filter(r => r["Tipo"] === "GASTO").reduce((s, r) => s + Number(r["Monto"]), 0);
-
-      const por_categoria = {};
-      del_mes.filter(r => r["Tipo"] === "GASTO").forEach(r => {
-        const cat = r["Descripcion"] || "Varios";
-        por_categoria[cat] = (por_categoria[cat] || 0) + Number(r["Monto"]);
+      const [mm, yyyy] = mes.split("/");
+      const del_mes = records.filter(r => {
+        const fecha = r["Fecha"] ? r["Fecha"].toString() : "";
+        const partes = fecha.split("/");
+        return partes.length === 3 && partes[1] === mm && partes[2] === yyyy;
       });
 
-      return ok({ingresos, gastos, balance: ingresos - gastos, por_categoria});
+      const ingresos = del_mes.filter(r => r["Tipo"] === "INGRESO").reduce((s, r) => s + Number(r["Monto"]), 0);
+      const gastos   = del_mes.filter(r => r["Tipo"] === "GASTO").reduce((s, r) => s + Number(r["Monto"]), 0);
+
+      return ok({ingresos, gastos, balance: ingresos - gastos});
     }
 
     if (action === "historial") {
