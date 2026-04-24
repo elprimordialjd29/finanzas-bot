@@ -165,17 +165,20 @@ async def recibir_descripcion(update: Update, context: ContextTypes.DEFAULT_TYPE
     categoria   = context.user_data["categoria"]
     monto       = context.user_data["monto"]
 
-    sheets.registrar_movimiento(tipo, monto, f"{categoria} - {descripcion}")
+    try:
+        sheets.registrar_movimiento(tipo, monto, f"{categoria} - {descripcion}")
+        emoji = "✅ Ingreso" if tipo == "INGRESO" else "✅ Gasto"
+        texto = (
+            f"{emoji} registrado\n"
+            f"📂 {categoria}\n"
+            f"📝 {descripcion}\n"
+            f"💰 {formato_pesos(monto)}"
+        )
+    except Exception as e:
+        logger.error("Error guardando movimiento: %s", e)
+        texto = "⚠️ Guardado con error. Intenta de nuevo."
 
-    emoji = "✅ Ingreso" if tipo == "INGRESO" else "✅ Gasto"
-    await update.message.reply_text(
-        f"{emoji} registrado\n"
-        f"📂 {categoria}\n"
-        f"📝 {descripcion}\n"
-        f"💰 {formato_pesos(monto)}",
-        parse_mode="Markdown",
-        reply_markup=MENU,
-    )
+    await update.message.reply_text(texto, parse_mode="Markdown", reply_markup=MENU)
     return ConversationHandler.END
 
 async def cancelar(update: Update, context: ContextTypes.DEFAULT_TYPE):
