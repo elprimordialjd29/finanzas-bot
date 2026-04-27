@@ -106,51 +106,38 @@ async def sistema(update: Update, context: ContextTypes.DEFAULT_TYPE):
     checks  = []
     errores = []
 
-    # 1. Verificar SheetDB — lectura
+    # 1. Apps Script — lectura (resumen del mes)
     try:
-        r = req_lib.get(sheets.SHEETDB_URL, params={"sheet": sheets.SHEET_NAME}, timeout=10)
-        if r.status_code == 200 and isinstance(r.json(), list):
-            checks.append("✅ SheetDB lectura — OK")
+        from datetime import datetime as dt
+        mes = dt.now().strftime("%m/%Y")
+        r = req_lib.get(sheets.SCRIPT_URL, params={"action": "resumen", "mes": mes},
+                        timeout=12, allow_redirects=True)
+        data = r.json()
+        if data.get("status") == "ok":
+            checks.append("✅ Apps Script lectura — OK")
         else:
-            checks.append(f"❌ SheetDB lectura — HTTP {r.status_code}")
-            errores.append("sheetdb_lectura")
+            checks.append(f"❌ Apps Script lectura — {data.get('mensaje', r.text[:50])}")
+            errores.append("script_lectura")
     except Exception as e:
-        checks.append(f"❌ SheetDB lectura — {e}")
-        errores.append("sheetdb_lectura")
+        checks.append(f"❌ Apps Script lectura — {e}")
+        errores.append("script_lectura")
 
-    # 2. Verificar SheetDB — escritura de prueba
-    from datetime import datetime
+    # 2. Apps Script — historial (verifica conexión general)
     try:
-        prueba = {
-            "data": {
-                "Fecha":       "TEST",
-                "Hora":        "00:00",
-                "Tipo":        "TEST",
-                "Monto":       0,
-                "Descripcion": "diagnostico-auto",
-                "Mes":         "00/0000",
-            }
-        }
-        r2 = req_lib.post(sheets.SHEETDB_URL, json=prueba,
-                          params={"sheet": sheets.SHEET_NAME}, timeout=10)
-        if r2.status_code in (200, 201):
-            checks.append("✅ SheetDB escritura — OK")
-            # Borrar la fila de prueba
-            try:
-                req_lib.delete(
-                    f"{sheets.SHEETDB_URL}/Descripcion/diagnostico-auto",
-                    params={"sheet": sheets.SHEET_NAME}, timeout=10
-                )
-            except Exception:
-                pass
+        r2 = req_lib.get(sheets.SCRIPT_URL, params={"action": "historial"},
+                         timeout=12, allow_redirects=True)
+        data2 = r2.json()
+        if data2.get("status") == "ok":
+            n = len(data2.get("registros", []))
+            checks.append(f"✅ Apps Script historial — OK ({n} registros recientes)")
         else:
-            checks.append(f"❌ SheetDB escritura — HTTP {r2.status_code}: {r2.text[:80]}")
-            errores.append("sheetdb_escritura")
+            checks.append(f"❌ Apps Script historial — {data2.get('mensaje', '')}")
+            errores.append("script_historial")
     except Exception as e:
-        checks.append(f"❌ SheetDB escritura — {e}")
-        errores.append("sheetdb_escritura")
+        checks.append(f"❌ Apps Script historial — {e}")
+        errores.append("script_historial")
 
-    # 3. Verificar variables de entorno
+    # 3. Variables de entorno
     if TOKEN:
         checks.append("✅ TELEGRAM_TOKEN — OK")
     else:
@@ -163,7 +150,7 @@ async def sistema(update: Update, context: ContextTypes.DEFAULT_TYPE):
         checks.append("❌ TELEGRAM_CHAT_ID — no configurado")
         errores.append("chat_id")
 
-    # 4. Verificar resumen del mes
+    # 4. Resumen del mes
     try:
         ing, gas, bal = sheets.obtener_resumen_mes()
         checks.append(f"✅ Datos del mes — Ingresos: {formato_pesos(ing)} | Gastos: {formato_pesos(gas)}")
@@ -201,25 +188,24 @@ async def reparar_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     pasos = []
 
-    # Intentar reconectar SheetDB
+    # Intentar reconectar Apps Script
     try:
-        r = req_lib.get(sheets.SHEETDB_URL, params={"sheet": sheets.SHEET_NAME}, timeout=10)
-        if r.status_code == 200:
-            pasos.append("✅ SheetDB reconectado")
+        r = req_lib.get(sheets.SCRIPT_URL, params={"action": "historial"},
+                        timeout=12, allow_redirects=True)
+        data = r.json()
+        if data.get("status") == "ok":
+            pasos.append("✅ Apps Script reconectado correctamente")
         else:
-            pasos.append(f"⚠️ SheetDB responde {r.status_code} — verifica tu cuenta en sheetdb.io")
+            pasos.append(f"⚠️ Apps Script responde con error: {data.get('mensaje', '')}")
     except Exception as e:
-        pasos.append(f"❌ No se pudo conectar a SheetDB: {e}")
+        pasos.append(f"❌ No se pudo conectar a Apps Script: {e}")
 
-    # Verificar hoja "Movimientos"
+    # Verificar resumen
     try:
-        r2 = req_lib.get(sheets.SHEETDB_URL, params={"sheet": "Movimientos"}, timeout=10)
-        if isinstance(r2.json(), list):
-            pasos.append('✅ Hoja "Movimientos" encontrada')
-        else:
-            pasos.append('⚠️ Hoja "Movimientos" no responde — verifica el nombre en Google Sheets')
-    except Exception:
-        pasos.append('❌ No se pudo verificar la hoja')
+        ing, gas, bal = sheets.obtener_resumen_mes()
+        pasos.append(f"✅ Hoja Movimientos OK — {formato_pesos(ing)} ingresos / {formato_pesos(gas)} gastos este mes")
+    except Exception as e:
+        pasos.append(f"❌ No se pudo leer el resumen: {e}")
 
     resumen_pasos = "\n".join(pasos)
     await query.edit_message_text(

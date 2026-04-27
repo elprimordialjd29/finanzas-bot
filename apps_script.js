@@ -7,7 +7,6 @@ function getSheet() {
   if (!sheet) {
     sheet = ss.insertSheet(SHEET_NAME);
     sheet.appendRow(["Fecha", "Hora", "Tipo", "Monto", "Descripcion", "Mes"]);
-    // Forzar texto en columnas que Sheets auto-convierte
     sheet.getRange("A:A").setNumberFormat("@");
     sheet.getRange("B:B").setNumberFormat("@");
     sheet.getRange("F:F").setNumberFormat("@");
@@ -18,15 +17,11 @@ function getSheet() {
 
 function doGet(e) {
   try {
-    let action = e.parameter.action || "";
+    let action = (e.parameter && e.parameter.action) ? e.parameter.action : "";
 
+    // ── REGISTRAR ─────────────────────────────────────────────────
     if (action === "registrar") {
       let sheet = getSheet();
-      // Forzar texto en Hora y Mes para evitar auto-conversión de Sheets
-      let now   = new Date();
-      let mm    = String(now.getMonth()+1).padStart(2,"0");
-      let yyyy  = now.getFullYear();
-      let mes   = mm + "/" + yyyy;
 
       let fecha = e.parameter.fecha       || "";
       let hora  = e.parameter.hora        || "";
@@ -34,7 +29,17 @@ function doGet(e) {
       let monto = Number(e.parameter.monto) || 0;
       let desc  = e.parameter.descripcion || "";
 
-      // Insertar fila
+      // Mes: usar el que viene del bot (ya formateado como MM/YYYY)
+      // Si no viene, calcularlo en el servidor
+      let mes = e.parameter.mes || "";
+      if (!mes) {
+        let now  = new Date();
+        let mm   = String(now.getMonth() + 1).padStart(2, "0");
+        mes = mm + "/" + now.getFullYear();
+      }
+
+      // Escritura celda a celda con setNumberFormat para evitar
+      // que Google Sheets auto-convierta hora/mes a número
       let lastRow = sheet.getLastRow() + 1;
       sheet.getRange(lastRow, 1).setNumberFormat("@").setValue(fecha);
       sheet.getRange(lastRow, 2).setNumberFormat("@").setValue(hora);
@@ -46,21 +51,28 @@ function doGet(e) {
       return ok({ mensaje: "Registrado", fila: lastRow, desc: desc, mes: mes });
     }
 
+    // ── RESUMEN ───────────────────────────────────────────────────
     if (action === "resumen") {
       let registros = getRegistros();
       let mes       = e.parameter.mes || "";
-      let [mm, yyyy] = mes.split("/");
+
+      // Filtrar por columna Mes (ya viene como "MM/YYYY" desde el bot)
       let del_mes = registros.filter(r => {
-        let partes = (r["Fecha"] || "").toString().split("/");
-        return partes.length === 3 && partes[1] === mm && partes[2] === yyyy;
+        let m = (r["Mes"] || "").toString().trim();
+        return m === mes;
       });
-      let ingresos = del_mes.filter(r => r["Tipo"] === "INGRESO")
-                            .reduce((s, r) => s + Number(r["Monto"]), 0);
-      let gastos   = del_mes.filter(r => r["Tipo"] === "GASTO")
-                            .reduce((s, r) => s + Number(r["Monto"]), 0);
+
+      let ingresos = del_mes
+        .filter(r => r["Tipo"] === "INGRESO")
+        .reduce((s, r) => s + Number(r["Monto"]), 0);
+      let gastos = del_mes
+        .filter(r => r["Tipo"] === "GASTO")
+        .reduce((s, r) => s + Number(r["Monto"]), 0);
+
       return ok({ ingresos, gastos, balance: ingresos - gastos });
     }
 
+    // ── HISTORIAL ─────────────────────────────────────────────────
     if (action === "historial") {
       return ok({ registros: getRegistros().slice(-10) });
     }
@@ -73,8 +85,7 @@ function doGet(e) {
 
 function doPost(e) {
   try {
-    let data = JSON.parse(e.postData.contents);
-    // Simular parámetros GET con datos del POST
+    let data  = JSON.parse(e.postData.contents);
     let fakeE = { parameter: data };
     return doGet(fakeE);
   } catch(err) {
@@ -87,11 +98,13 @@ function getRegistros() {
   if (sheet.getLastRow() <= 1) return [];
   let rows    = sheet.getDataRange().getValues();
   let headers = rows[0];
-  return rows.slice(1).map(r => {
-    let obj = {};
-    headers.forEach((h, i) => obj[h] = r[i]);
-    return obj;
-  }).filter(r => r["Fecha"] !== "");
+  return rows.slice(1)
+    .map(r => {
+      let obj = {};
+      headers.forEach((h, i) => obj[h] = r[i]);
+      return obj;
+    })
+    .filter(r => r["Fecha"] !== "" && r["Fecha"] !== null);
 }
 
 function ok(data) {
