@@ -263,10 +263,10 @@ function crearEstructura(ss) {
       .setBackground(AZUL).setFontColor(BLANCO).setFontSize(20).setFontWeight("bold")
       .setFontFamily("Arial").setHorizontalAlignment("center").setVerticalAlignment("middle");
 
-  // Fila 2: Mes actual — FÓRMULA (se actualiza sola)
+  // Fila 2: Mes actual — FÓRMULA (se actualiza sola) — separadores locale ES (;)
   dash.setRowHeight(2, 30);
   dash.getRange("B2:F2").merge()
-      .setFormula('="📅  "&UPPER(CHOOSE(MONTH(TODAY()),"Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"))&"  "&YEAR(TODAY())')
+      .setFormula('="📅  "&UPPER(CHOOSE(MONTH(TODAY());"Enero";"Febrero";"Marzo";"Abril";"Mayo";"Junio";"Julio";"Agosto";"Septiembre";"Octubre";"Noviembre";"Diciembre"))&"  "&YEAR(TODAY())')
       .setBackground(CELESTE).setFontColor(AZUL).setFontSize(12).setFontWeight("bold")
       .setHorizontalAlignment("center").setVerticalAlignment("middle");
 
@@ -295,8 +295,8 @@ function crearEstructura(ss) {
         .setNumberFormat(col === "F" ? "0.0%" : '$#,##0');
   });
 
-  // Fórmulas SUMPRODUCT — se actualizan solas al agregar datos a Movimientos
-  let mesFml = 'TEXT(MONTH(TODAY()),"00")&"/"&YEAR(TODAY())';
+  // Fórmulas SUMPRODUCT — locale ES usa ; en vez de ,
+  let mesFml = 'TEXT(MONTH(TODAY());"00")&"/"&YEAR(TODAY())';
   dash.getRange("C5").setFormula(
     `=SUMPRODUCT((Movimientos!F2:F2000=${mesFml})*(Movimientos!C2:C2000="INGRESO")*Movimientos!D2:D2000)`
   );
@@ -304,12 +304,12 @@ function crearEstructura(ss) {
     `=SUMPRODUCT((Movimientos!F2:F2000=${mesFml})*(Movimientos!C2:C2000="GASTO")*Movimientos!D2:D2000)`
   );
   dash.getRange("E5").setFormula("=C5-D5");
-  dash.getRange("F5").setFormula("=IFERROR(D5/C5,0)");
+  dash.getRange("F5").setFormula("=IFERROR(D5/C5;0)");
 
-  // Fila 6: Estado financiero — FÓRMULA
+  // Fila 6: Estado financiero — FÓRMULA (locale ES)
   dash.setRowHeight(6, 26);
   dash.getRange("B6:F6").merge()
-      .setFormula('=IF(E5>=0,"✅  BALANCE POSITIVO","⚠️  BALANCE NEGATIVO")')
+      .setFormula('=IF(E5>=0;"✅  BALANCE POSITIVO";"⚠️  BALANCE NEGATIVO")')
       .setBackground(GRIS).setFontSize(11).setFontWeight("bold")
       .setHorizontalAlignment("center").setVerticalAlignment("middle");
 
@@ -386,19 +386,19 @@ function crearEstructura(ss) {
       .setHorizontalAlignment("center").setFontSize(10);
   });
 
-  // Fórmula QUERY — agrupa datos de Movimientos por mes automáticamente
+  // Fórmula QUERY — locale ES: \ separa columnas en arrays, ; separa argumentos
   pm.getRange("B3").setFormula(
-    '=IFERROR(QUERY({Movimientos!F2:F2000,IF(Movimientos!C2:C2000="INGRESO",Movimientos!D2:D2000,0),IF(Movimientos!C2:C2000="GASTO",Movimientos!D2:D2000,0)},' +
+    '=IFERROR(QUERY({Movimientos!F2:F2000\\IF(Movimientos!C2:C2000="INGRESO";Movimientos!D2:D2000;0)\\IF(Movimientos!C2:C2000="GASTO";Movimientos!D2:D2000;0)};' +
     '"SELECT Col1,SUM(Col2),SUM(Col3) WHERE Col1<>\'\' GROUP BY Col1 ORDER BY Col1 ' +
-    'LABEL Col1 \'\',SUM(Col2) \'\',SUM(Col3) \'\'",0),"")'
+    'LABEL Col1 \'\',SUM(Col2) \'\',SUM(Col3) \'\'";0);"")'
   );
 
-  // Balance = Ingresos - Gastos para cada fila
+  // Balance = Ingresos - Gastos para cada fila (locale ES: ; en IFERROR)
   for (let i = 3; i <= 26; i++) {
     pm.setRowHeight(i, 28);
     pm.getRange(`C${i}`).setNumberFormat('$#,##0').setHorizontalAlignment("right");
     pm.getRange(`D${i}`).setNumberFormat('$#,##0').setHorizontalAlignment("right");
-    pm.getRange(`E${i}`).setFormula(`=IFERROR(C${i}-D${i},"")`).setNumberFormat('$#,##0').setHorizontalAlignment("right");
+    pm.getRange(`E${i}`).setFormula(`=IFERROR(C${i}-D${i};"")`).setNumberFormat('$#,##0').setHorizontalAlignment("right");
     pm.getRange(`B${i}:E${i}`).setBackground(i % 2 === 0 ? GRIS : BLANCO);
   }
 
