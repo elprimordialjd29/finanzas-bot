@@ -24,23 +24,21 @@ function doGet(e) {
     if (action === "registrar") {
       let sheet = getSheet();
 
-      let fecha = e.parameter.fecha       || "";
-      let hora  = e.parameter.hora        || "";
-      let tipo  = e.parameter.tipo        || "";
-      let monto = Number(e.parameter.monto) || 0;
-      let desc  = e.parameter.descripcion || "";
+      // Leer datos desde parámetro JSON único (evita pérdida de params en URL)
+      let d     = JSON.parse(e.parameter.data || "{}");
+      let fecha = d.fecha       || "";
+      let hora  = d.hora        || "";
+      let tipo  = d.tipo        || "";
+      let monto = Number(d.monto) || 0;
+      let desc  = d.descripcion || "";
+      let mes   = d.mes         || "";
 
-      // Mes: usar el que viene del bot (ya formateado como MM/YYYY)
-      // Si no viene, calcularlo en el servidor
-      let mes = e.parameter.mes || "";
       if (!mes) {
-        let now  = new Date();
-        let mm   = String(now.getMonth() + 1).padStart(2, "0");
-        mes = mm + "/" + now.getFullYear();
+        let now = new Date();
+        mes = String(now.getMonth() + 1).padStart(2, "0") + "/" + now.getFullYear();
       }
 
-      // Escritura celda a celda con setNumberFormat para evitar
-      // que Google Sheets auto-convierta hora/mes a número
+      // Escritura celda a celda con setNumberFormat
       let lastRow = sheet.getLastRow() + 1;
       sheet.getRange(lastRow, 1).setNumberFormat("@").setValue(fecha);
       sheet.getRange(lastRow, 2).setNumberFormat("@").setValue(hora);

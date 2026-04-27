@@ -40,11 +40,14 @@ def _monto(val):
 
 
 def registrar_movimiento(tipo, monto, descripcion):
-    """Registra en Google Sheets via Apps Script GET (evita redirect POST→GET)."""
+    """Registra en Google Sheets via Apps Script GET.
+    Envía todos los datos como un solo parámetro JSON para evitar
+    problemas de parsing de múltiples parámetros URL en Apps Script."""
+    import json, urllib.parse
     now  = datetime.now()
     desc = _limpiar(descripcion)
-    params = {
-        "action":      "registrar",
+
+    payload = {
         "fecha":       now.strftime("%d/%m/%Y"),
         "hora":        now.strftime("%H:%M"),
         "tipo":        tipo,
@@ -52,8 +55,10 @@ def registrar_movimiento(tipo, monto, descripcion):
         "descripcion": desc,
         "mes":         now.strftime("%m/%Y"),
     }
+    # Codificar datos como JSON en un único parámetro URL
+    url = f"{SCRIPT_URL}?action=registrar&data={urllib.parse.quote(json.dumps(payload))}"
     logger.info("Apps Script registro → tipo=%s monto=%s desc='%s'", tipo, monto, desc)
-    r = requests.get(SCRIPT_URL, params=params, timeout=20, allow_redirects=True)
+    r = requests.get(url, timeout=20, allow_redirects=True)
     logger.info("Apps Script respuesta: %s %s", r.status_code, r.text[:300])
     if r.status_code not in (200, 201):
         raise RuntimeError(f"Apps Script error {r.status_code}: {r.text[:100]}")
