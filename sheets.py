@@ -18,25 +18,27 @@ def _limpiar(texto):
     return re.sub(r'[^\w\s\-.,:/áéíóúñÁÉÍÓÚÑ]', '', str(texto)).strip()
 
 def registrar_movimiento(tipo, monto, descripcion):
-    now = datetime.now()
+    now  = datetime.now()
+    desc = _limpiar(descripcion)
+    # SheetDB requiere "data" como lista de objetos
     payload = {
-        "data": {
+        "data": [{
             "Fecha":       now.strftime("%d/%m/%Y"),
             "Hora":        now.strftime("%H:%M"),
             "Tipo":        tipo,
             "Monto":       int(monto),
-            "Descripcion": _limpiar(descripcion),
+            "Descripcion": desc,
             "Mes":         now.strftime("%m/%Y"),
-        }
+        }]
     }
-    logger.info("SheetDB escribiendo: %s", payload)
+    logger.info("SheetDB payload → Descripcion='%s'", desc)
     r = requests.post(
         SHEETDB_URL,
         json=payload,
         params={"sheet": SHEET_NAME},
         timeout=15,
     )
-    logger.info("SheetDB respuesta: %s %s", r.status_code, r.text[:200])
+    logger.info("SheetDB respuesta: %s %s", r.status_code, r.text[:300])
     if r.status_code not in (200, 201):
         raise RuntimeError(f"SheetDB error {r.status_code}: {r.text[:100]}")
     return r.json()
