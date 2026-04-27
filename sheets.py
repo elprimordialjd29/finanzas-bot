@@ -17,6 +17,25 @@ def _limpiar(texto):
     """Elimina emojis y caracteres que SheetDB rechaza."""
     return re.sub(r'[^\w\s\-.,:/áéíóúñÁÉÍÓÚÑ]', '', str(texto)).strip()
 
+def _monto(val):
+    """Convierte cualquier formato de monto a float: 4500000, '$4.500.000', '4,500,000'."""
+    if isinstance(val, (int, float)):
+        return float(val)
+    s = str(val).replace('$', '').replace(' ', '')
+    # Formato colombiano: punto = miles → eliminar puntos si hay más de uno
+    if s.count('.') > 1:
+        s = s.replace('.', '')
+    elif s.count('.') == 1 and s.count(',') == 0:
+        # puede ser decimal o miles — si tiene 3 dígitos después = miles
+        partes = s.split('.')
+        if len(partes[1]) == 3:
+            s = s.replace('.', '')
+    s = s.replace(',', '.')
+    try:
+        return float(s)
+    except Exception:
+        return 0.0
+
 def registrar_movimiento(tipo, monto, descripcion):
     now  = datetime.now()
     desc = _limpiar(descripcion)
@@ -55,8 +74,9 @@ def obtener_resumen_mes():
         if not isinstance(records, list):
             return 0, 0, 0
         del_mes  = [rec for rec in records if rec.get("Mes") == mes]
-        ingresos = sum(float(rec["Monto"]) for rec in del_mes if rec.get("Tipo") == "INGRESO")
-        gastos   = sum(float(rec["Monto"]) for rec in del_mes if rec.get("Tipo") == "GASTO")
+        logger.info("Registros del mes %s: %d", mes, len(del_mes))
+        ingresos = sum(_monto(rec["Monto"]) for rec in del_mes if rec.get("Tipo") == "INGRESO")
+        gastos   = sum(_monto(rec["Monto"]) for rec in del_mes if rec.get("Tipo") == "GASTO")
         return ingresos, gastos, ingresos - gastos
     except Exception as e:
         logger.error("Error resumen: %s", e)

@@ -372,7 +372,7 @@ async def historial(update: Update, context: ContextTypes.DEFAULT_TYPE):
     texto = "📋 *Últimos movimientos*\n\n"
     for r in reversed(registros):
         emoji = "💵" if r.get("Tipo") == "INGRESO" else "💸"
-        texto += f"{emoji} {r.get('Fecha')} — {formato_pesos(float(r.get('Monto', 0)))} — {r.get('Descripcion')}\n"
+        texto += f"{emoji} {r.get('Fecha')} — {formato_pesos(sheets._monto(r.get('Monto', 0)))} — {r.get('Descripcion')}\n"
     await update.message.reply_text(texto, parse_mode="Markdown", reply_markup=MENU)
 
 async def alerta_diaria(context: ContextTypes.DEFAULT_TYPE):
