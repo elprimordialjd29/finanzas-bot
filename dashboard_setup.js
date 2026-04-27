@@ -187,56 +187,7 @@ function actualizarDashboard() {
     dash.getRange("B22").setValue("🔄  Actualizado: " + new Date().toLocaleString());
   }
 
-  // ── ESTADÍSTICAS ──────────────────────────────────────────────
-  let est = ss.getSheetByName("Estadisticas");
-  if (est) {
-    // Gastos por categoría
-    let cats = {};
-    datos.filter(r => r["Tipo"] === "GASTO").forEach(r => {
-      let desc = (r["Descripcion"] || "").toString().trim();
-      let cat  = desc.includes(" - ") ? desc.split(" - ")[0].trim() : (desc || "Sin categoría");
-      cats[cat] = (cats[cat] || 0) + parseMonto(r["Monto"]);
-    });
-    let sorted = Object.entries(cats).sort((a, b) => b[1] - a[1]);
-
-    est.getRange("B3:C32").clearContent();
-    if (sorted.length === 0) {
-      // Placeholder para que el gráfico no dé error de "columna no numérica"
-      est.getRange("B3").setValue("Sin gastos registrados");
-      est.getRange("C3").setValue(1);
-      est.getRange("B3:C3").setBackground(GRIS);
-    } else {
-      sorted.forEach(([cat, total], i) => {
-        let row = i + 3;
-        est.getRange(`B${row}`).setValue(cat);
-        est.getRange(`C${row}`).setValue(total);
-        est.getRange(`B${row}:C${row}`)
-           .setBackground(i === 0 ? "#FADBD8" : i % 2 === 0 ? "#F9EBEA" : BLANCO);
-      });
-    }
-
-    // Días con más gastos
-    let porDia = {};
-    datos.filter(r => r["Tipo"] === "GASTO").forEach(r => {
-      let d = formatFecha(r["Fecha"]);
-      if (d) porDia[d] = (porDia[d] || 0) + parseMonto(r["Monto"]);
-    });
-    let diasSort = Object.entries(porDia).sort((a, b) => b[1] - a[1]);
-
-    est.getRange("E3:F12").clearContent();
-    if (diasSort.length === 0) {
-      est.getRange("E3").setValue("Sin datos");
-      est.getRange("F3").setValue(0);
-      est.getRange("E3:F3").setBackground(GRIS);
-    } else {
-      diasSort.slice(0, 10).forEach(([dia, total], i) => {
-        est.getRange(`E${i + 3}`).setValue(dia);
-        est.getRange(`F${i + 3}`).setValue(total);
-        est.getRange(`E${i + 3}:F${i + 3}`)
-           .setBackground(i === 0 ? "#FADBD8" : i % 2 === 0 ? "#F9EBEA" : BLANCO);
-      });
-    }
-  }
+  // Estadísticas ahora usa fórmulas QUERY (auto-actualiza sola, no se toca aquí)
 
   SpreadsheetApp.flush();
 }
@@ -458,9 +409,15 @@ function crearEstructura(ss) {
     est.getRange(`F${i}`).setNumberFormat('$#,##0').setHorizontalAlignment("right");
   }
 
-  // Placeholder inicial para que el gráfico no dé error al estar vacío
-  est.getRange("B3").setValue("Sin gastos aún");
-  est.getRange("C3").setValue(1);
+  // Fórmula QUERY: agrupa gastos por categoría (extrae texto antes de " - ")
+  // Locale ES: \\ = separador de columna en array, ; = separador de argumentos
+  est.getRange("B3").setFormula(
+    '=IFERROR(QUERY({IF(Movimientos!C2:C2000="GASTO";IFERROR(REGEXEXTRACT(Movimientos!E2:E2000;"^(.+?) - ");"Sin categoria");"")\\IF(Movimientos!C2:C2000="GASTO";Movimientos!D2:D2000;0)};"SELECT Col1,SUM(Col2) WHERE Col1<>\'\' GROUP BY Col1 ORDER BY SUM(Col2) DESC LABEL Col1 \'\',SUM(Col2) \'\'";0);"")'
+  );
+  // Fórmula QUERY: top 10 días con más gastos
+  est.getRange("E3").setFormula(
+    '=IFERROR(QUERY({IF(Movimientos!C2:C2000="GASTO";Movimientos!A2:A2000;"")\\IF(Movimientos!C2:C2000="GASTO";Movimientos!D2:D2000;0)};"SELECT Col1,SUM(Col2) WHERE Col1<>\'\' GROUP BY Col1 ORDER BY SUM(Col2) DESC LIMIT 10 LABEL Col1 \'\',SUM(Col2) \'\'";0);"")'
+  );
 
   est.getRange("B1:C32").setBorder(true, true, true, true, null, null, "#BDC3C7", SpreadsheetApp.BorderStyle.SOLID);
   est.getRange("B2:C32").setBorder(true, true, true, true, true, true, "#BDC3C7", SpreadsheetApp.BorderStyle.SOLID);
