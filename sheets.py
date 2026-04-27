@@ -12,7 +12,7 @@ SHEET_NAME  = "Movimientos"
 # Apps Script — maneja TODO (lectura y escritura)
 SCRIPT_URL = os.environ.get(
     "SCRIPT_URL",
-    "https://script.google.com/macros/s/AKfycbyXqIQovqriY_586OV6YN3Dyiu72u0asj5z8aknMwCwEz_m3pVaNJWwT6TKZH89YiIg/exec",
+    "https://script.google.com/macros/s/AKfycbwf8eeDXEzNR_iR4FMyXm7debqEVOCHYGFigywbYlswGcAKoTOP1pY63xStT1jDBx1c/exec",
 )
 
 
