@@ -7,11 +7,12 @@ function getSheet() {
   if (!sheet) {
     sheet = ss.insertSheet(SHEET_NAME);
     sheet.appendRow(["Fecha", "Hora", "Tipo", "Monto", "Descripcion", "Mes"]);
-    sheet.getRange("A:A").setNumberFormat("@");
-    sheet.getRange("B:B").setNumberFormat("@");
-    sheet.getRange("F:F").setNumberFormat("@");
-    sheet.getRange("D:D").setNumberFormat("$#,##0");
   }
+  // Aplicar SIEMPRE (no solo al crear) — evita auto-conversión de hora/mes a número
+  sheet.getRange("A:A").setNumberFormat("@");
+  sheet.getRange("B:B").setNumberFormat("@");
+  sheet.getRange("F:F").setNumberFormat("@");
+  sheet.getRange("D:D").setNumberFormat("$#,##0");
   return sheet;
 }
 
